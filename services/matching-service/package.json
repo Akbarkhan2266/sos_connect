@@ -1,0 +1,20 @@
+{
+  "name": "matching-service",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node-dev src/index.ts",
+    "start": "ts-node-dev src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "kafkajs": "^2.2.4",
+    "redis": "^4.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: ui-rounded, "Avenir Next", "Segoe UI", sans-serif;
+  --font-body: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid #0e7c86;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Signature broadcast motif: concentric pulse rings, reused around the SOS
+   button, live status dots, and severity badges to signal "actively
+   transmitting". Built with layered pseudo-rings rather than a single
+   generic ping so it reads as a deliberate radar sweep, not a default. */
+.pulse-rings {
+  position: relative;
+}
+.pulse-rings::before,
+.pulse-rings::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  animation: pulseRing 2.2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+}
+.pulse-rings::after {
+  animation-delay: 1.1s;
+}
