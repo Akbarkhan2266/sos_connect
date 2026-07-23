@@ -22,11 +22,12 @@ app.use(cookieParser());
 
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
-
+app.get("/users/health", (_req, res) => res.json({ status: "ok" }));
 async function start(): Promise<void> {
   await mongoose.connect(mongoUrl!);
   app.listen(port, () => console.log(`User service listening on port ${port}`));
 }
+
 
 start().catch((error: unknown) => {
   console.error("Failed to start user service", error);

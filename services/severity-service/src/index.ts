@@ -9,8 +9,8 @@ interface SosCreatedEvent {
   description: string;
 }
 
-const sosServiceUrl = process.env.SOS_SERVICE_URL ?? "http://localhost:4001";
-const kafka = new Kafka({ clientId: "severity-service", brokers: ["localhost:9092"] });
+const sosServiceUrl = process.env.SOS_SERVICE_URL ?? "http://sos-service:4001";
+const kafka = new Kafka({ clientId: "severity-service", brokers: ["kafka:9092"] });
 const consumer = kafka.consumer({ groupId: "severity-group" });
 
 function parseSosEvent(value: Buffer | null): SosCreatedEvent {

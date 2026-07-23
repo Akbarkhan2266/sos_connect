@@ -22,7 +22,7 @@ app.use(cors({ origin: "*" }));
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
-const kafka = new Kafka({ clientId: "notification-service", brokers: ["localhost:9092"] });
+const kafka = new Kafka({ clientId: "notification-service", brokers: ["kafka:9092"] });
 const producer = kafka.producer();
 const consumer = kafka.consumer({ groupId: "notification-group" });
 

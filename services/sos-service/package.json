@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "ts-node-dev src/index.ts",
     "start": "ts-node-dev src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+     "build": "tsc"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",

@@ -24,11 +24,11 @@ interface AvailabilityEvent {
   isAvailable: boolean;
 }
 
-const kafka = new Kafka({ clientId: "matching-service", brokers: ["localhost:9092"] });
+const kafka = new Kafka({ clientId: "matching-service", brokers: ["kafka:9092"] });
 const producer = kafka.producer();
 const matchingConsumer = kafka.consumer({ groupId: "matching-group" });
 const locationConsumer = kafka.consumer({ groupId: "matching-location-group" });
-const sosServiceUrl = process.env.SOS_SERVICE_URL ?? "http://localhost:4001";
+const sosServiceUrl = process.env.SOS_SERVICE_URL ?? "http://sos-service:4001";
 const volunteerAcceptanceTimeoutMs = 60_000;
 
 function parseEvent<T>(value: Buffer | null): T {

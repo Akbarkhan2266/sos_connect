@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "ts-node-dev src/index.ts",
     "start": "ts-node-dev src/index.ts",
+     "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

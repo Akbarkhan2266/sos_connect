@@ -17,7 +17,7 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
@@ -28,6 +28,62 @@ services:
       KAFKA_NUM_PARTITIONS: 3
     volumes:
       - kafka-data:/var/lib/kafka/data
+
+
+  user-service:
+    build: ./services/user-service
+    env_file:
+      - ./services/user-service/.env
+    depends_on:
+      - mongodb
+      - kafka
+    restart: unless-stopped
+  
+  notification-service:
+    build: ./services/notification-service
+    env_file:
+      - ./services/notification-service/.env
+    depends_on:
+      - mongodb
+      - kafka
+    restart: unless-stopped
+
+  sos-service:
+    build: ./services/sos-service
+    env_file:
+      - ./services/sos-service/.env
+    depends_on:
+      - mongodb
+      - kafka
+    restart: unless-stopped
+
+  matching-service:
+    build: ./services/matching-service
+    env_file:
+      - ./services/matching-service/.env
+    depends_on:
+      - mongodb
+      - kafka
+    restart: unless-stopped
+
+  severity-service:
+    build: ./services/severity-service
+    env_file:
+      - ./services/severity-service/.env
+    depends_on:
+      - mongodb
+      - kafka
+    restart: unless-stopped
+
+  api-gateway:
+    build: ./api-gateway
+    env_file:
+      - ./api-gateway/.env
+    restart: unless-stopped
+    depends_on:
+      - user-service
+    ports:
+      - "3000:3000"
 volumes:
   mongo_data:
   kafka-data:
