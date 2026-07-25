@@ -3,10 +3,12 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+const isTls = process.env.REDIS_URL?.startsWith("rediss://") ?? false;
+
 const redisClient = createClient({
   url: process.env.REDIS_URL,
   socket: {
-    tls: true,
+    tls: isTls,
     connectTimeout: 10000,
     reconnectStrategy: (retries) => Math.min(retries * 100, 3000),
   },

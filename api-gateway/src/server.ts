@@ -8,7 +8,7 @@ dotenv.config();
 
 const app = express();
 const port = Number(process.env.PORT ?? 4005);
-const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3001";
 
 const services = {
   user: process.env.USER_SERVICE_URL ?? "http://localhost:4000",

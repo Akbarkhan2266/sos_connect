@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import { Kafka } from "kafkajs";
 
-import redis from "./redis";
+import redis, { connectRedis } from "./redis";
 
 dotenv.config();
 
@@ -24,11 +24,16 @@ interface AvailabilityEvent {
   isAvailable: boolean;
 }
 
-const kafka = new Kafka({ clientId: "matching-service", brokers: ["kafka:9092"] });
+const brokers = (process.env.KAFKA_BROKERS ?? "localhost:9092")
+  .split(",")
+  .map((broker) => broker.trim())
+  .filter(Boolean);
+
+const kafka = new Kafka({ clientId: "matching-service", brokers });
 const producer = kafka.producer();
 const matchingConsumer = kafka.consumer({ groupId: "matching-group" });
 const locationConsumer = kafka.consumer({ groupId: "matching-location-group" });
-const sosServiceUrl = process.env.SOS_SERVICE_URL ?? "http://sos-service:4001";
+const sosServiceUrl = process.env.SOS_SERVICE_URL ?? "http://localhost:4001";
 const volunteerAcceptanceTimeoutMs = 60_000;
 
 function parseEvent<T>(value: Buffer | null): T {
@@ -122,6 +127,7 @@ async function handleSosEvent(topic: string, value: Buffer | null): Promise<void
 }
 
 async function start(): Promise<void> {
+  await connectRedis();
   await producer.connect();
   await matchingConsumer.connect();
   await locationConsumer.connect();

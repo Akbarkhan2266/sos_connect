@@ -1,7 +1,7 @@
 import { io, Socket } from "socket.io-client";
 
 const API_GATEWAY_URL =
-  process.env.NEXT_PUBLIC_API_GATEWAY_URL || "http://localhost:4005";
+process.env.NEXT_PUBLIC_API_GATEWAY_URL || "http://localhost:4003";
 
 let socket: Socket | null = null;
 
@@ -13,7 +13,8 @@ let socket: Socket | null = null;
  */
 export function getSocket(): Socket {
   if (socket) return socket;
-
+  console.log(API_GATEWAY_URL);
+  
   socket = io(API_GATEWAY_URL, {
     path: "/socket.io",
     autoConnect: true,

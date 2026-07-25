@@ -10,7 +10,12 @@ interface SosCreatedEvent {
 }
 
 const sosServiceUrl = process.env.SOS_SERVICE_URL ?? "http://sos-service:4001";
-const kafka = new Kafka({ clientId: "severity-service", brokers: ["kafka:9092"] });
+const brokers = (process.env.KAFKA_BROKERS ?? "localhost:9092")
+  .split(",")
+  .map((broker) => broker.trim())
+  .filter(Boolean);
+
+const kafka = new Kafka({ clientId: "severity-service", brokers });
 const consumer = kafka.consumer({ groupId: "severity-group" });
 
 function parseSosEvent(value: Buffer | null): SosCreatedEvent {
