@@ -32,6 +32,15 @@ export function removePendingSos(sosId: string): void {
   }
 }
 
+export function seedInitialVictimLocation(sosId: string, lat: number, lng: number): void {
+  if (typeof sosId !== "string" || typeof lat !== "number" || typeof lng !== "number") return;
+  const locations = latestSosLocations.get(sosId) ?? {};
+  if (!locations.victim) {
+    locations.victim = { sosId, role: "victim", lat, lng };
+    latestSosLocations.set(sosId, locations);
+  }
+}
+
 function isLocationUpdate(payload: unknown): payload is VolunteerLocationUpdate {
   if (!payload || typeof payload !== "object") return false;
   const value = payload as Record<string, unknown>;

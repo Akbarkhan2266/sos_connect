@@ -61,8 +61,11 @@ app.patch("/sos/:id/match", async (req: Request, res: Response) => {
     }
 
     const sos = await Sos.findOneAndUpdate(
-      { _id: req.params.id, status: "open" },
-      { status: "matched", matchedVolunteers },
+      { _id: req.params.id, status: { $in: ["open", "matched"] } },
+      {
+        status: "matched",
+        $addToSet: { matchedVolunteers: { $each: matchedVolunteers } }
+      },
       { new: true }
     );
     if (!sos) return res.status(409).json({ error: "SOS is no longer open for matching" });

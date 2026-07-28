@@ -1,15 +1,17 @@
 services:
   mongodb:
     image: mongo:latest
+    container_name: mongodb
     restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
-      
+
   kafka:
     image: apache/kafka:3.7.0
     container_name: kafka
+    restart: unless-stopped
     ports:
       - "9092:29092"
       - "9093:9093"
@@ -29,8 +31,92 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
 
+  kafka-admin:
+    build:
+      context: ./services/kafka-admin
+    container_name: kafka-admin
+    env_file:
+      - ./services/kafka-admin/.env
+    depends_on:
+      - kafka
+    restart: on-failure
 
-   
+  user-service:
+    build:
+      context: ./services/user-service
+    container_name: user-service
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./services/user-service/.env
+    depends_on:
+      - mongodb
+      - kafka
+    restart: unless-stopped
+
+  sos-service:
+    build:
+      context: ./services/sos-service
+    container_name: sos-service
+    ports:
+      - "4001:4001"
+    env_file:
+      - ./services/sos-service/.env
+    depends_on:
+      - mongodb
+      - kafka
+    restart: unless-stopped
+
+  severity-service:
+    build:
+      context: ./services/severity-service
+    container_name: severity-service
+    env_file:
+      - ./services/severity-service/.env
+    depends_on:
+      - kafka
+      - sos-service
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+    container_name: notification-service
+    ports:
+      - "4003:4003"
+    env_file:
+      - ./services/notification-service/.env
+    depends_on:
+      - kafka
+    restart: unless-stopped
+
+  matching-service:
+    build:
+      context: ./services/matching-service
+    container_name: matching-service
+    ports:
+      - "4005:4005"
+    env_file:
+      - ./services/matching-service/.env
+    depends_on:
+      - kafka
+      - sos-service
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "9000:9000"
+    env_file:
+      - ./api-gateway/.env
+    depends_on:
+      - user-service
+      - sos-service
+      - notification-service
+    restart: unless-stopped
+
 volumes:
   mongo_data:
   kafka-data:

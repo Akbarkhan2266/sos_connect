@@ -11,15 +11,32 @@ const port = Number(process.env.PORT ?? 4005);
 const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3001";
 
 const services = {
-  user: process.env.USER_SERVICE_URL ?? "http://localhost:4000",
-  sos: process.env.SOS_SERVICE_URL ?? "http://localhost:4001",
-  notification: process.env.NOTIFICATION_SERVICE_URL ?? "http://localhost:4003",
+  user: process.env.USER_SERVICE_URL ?? "http://user-service:4000",
+  sos: process.env.SOS_SERVICE_URL ?? "http://sos-service:4001",
+  notification: process.env.NOTIFICATION_SERVICE_URL ?? "http://notification-service:4003",
 };
 
-app.use(cors({ origin: frontendUrl, credentials: true }));
+app.use(cors({ origin: true, credentials: true }));
 app.use(morgan("dev"));
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
+function handleProxyError(res: any, errorMessage: string) {
+  if (!res) return;
+
+  if (typeof res.status === "function") {
+    if (!res.headersSent) {
+      res.status(502).json({ error: errorMessage });
+    }
+  } else if (typeof res.writeHead === "function") {
+    if (!res.headersSent) {
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: errorMessage }));
+    }
+  } else if (typeof res.destroy === "function") {
+    res.destroy();
+  }
+}
 
 function serviceProxy(target: string) {
   return createProxyMiddleware({
@@ -29,9 +46,9 @@ function serviceProxy(target: string) {
     // service routes (`/auth/*`, `/users/*`, and `/sos/*`).
     pathRewrite: { "^/api": "" },
     logLevel: "warn",
-    onError(error, _req, res) {
+    onError(error, _req, res: any) {
       console.error(`Proxy error for ${target}:`, error.message);
-      if (!res.headersSent) res.status(502).json({ error: "Service unavailable" });
+      handleProxyError(res, "Service unavailable");
     },
   });
 }
@@ -44,24 +61,28 @@ app.use("/api/sos", serviceProxy(services.sos));
 app.use("/api/notifications", serviceProxy(services.notification));
 // Socket.IO uses an HTTP handshake followed by a WebSocket upgrade. Preserve
 // its `/socket.io` path while proxying both transports to notification-service.
-app.use(
-  "/socket.io",
-  createProxyMiddleware({
-    target: services.notification,
-    changeOrigin: true,
-    ws: true,
-    pathRewrite: (path) => (path.startsWith("/socket.io") ? path : `/socket.io${path}`),
-    logLevel: "warn",
-    onError(error, _req, res) {
-      console.error(`Socket proxy error for ${services.notification}:`, error.message);
-      if (!res.headersSent) res.status(502).json({ error: "Notification service unavailable" });
-    },
-  })
-);
+const socketProxy = createProxyMiddleware("/socket.io", {
+  target: services.notification,
+  changeOrigin: true,
+  ws: true,
+  logLevel: "warn",
+  onError(error, _req, res: any) {
+    console.error(`Socket proxy error for ${services.notification}:`, error.message);
+    handleProxyError(res, "Notification service unavailable");
+  },
+});
 
-app.listen(port, "0.0.0.0", () => {
+app.use(socketProxy);
+
+const server = app.listen(port, "0.0.0.0", () => {
   console.log(`API gateway listening on http://0.0.0.0:${port}`);
   console.log(`/api/auth, /api/users -> ${services.user}`);
   console.log(`/api/sos -> ${services.sos}`);
   console.log(`/socket.io -> ${services.notification}`);
+});
+
+server.on("upgrade", (req, socket, head) => {
+  if (req.url?.startsWith("/socket.io")) {
+    (socketProxy as any).upgrade(req, socket, head);
+  }
 });

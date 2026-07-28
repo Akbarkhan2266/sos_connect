@@ -7,10 +7,13 @@ import express from "express";
 import { Kafka } from "kafkajs";
 import { Server } from "socket.io";
 
-import { registerSocketHandlers, removePendingSos, savePendingSos } from "./controller/socket.controller";
+import { registerSocketHandlers, removePendingSos, savePendingSos, seedInitialVictimLocation } from "./controller/socket.controller";
 
 interface SosEvent {
   _id: string;
+  victimId?: string;
+  lat?: number;
+  lng?: number;
   acceptedBy?: string;
   matchedVolunteers?: string[];
   [key: string]: unknown;
@@ -22,7 +25,7 @@ app.use(cors({ origin: "*" }));
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
-const brokers = (process.env.KAFKA_BROKERS ?? "localhost:9092")
+const brokers = (process.env.KAFKA_BROKERS ?? "kafka:9092")
   .split(",")
   .map((broker) => broker.trim())
   .filter(Boolean);
@@ -43,6 +46,10 @@ function validVolunteerIds(value: unknown): string[] {
 async function relayKafkaEvent(topic: string, value: Buffer | null): Promise<void> {
   const data = parseEvent(value);
 
+  if (typeof data.lat === "number" && typeof data.lng === "number") {
+    seedInitialVictimLocation(data._id, data.lat, data.lng);
+  }
+
   if (topic === "sos.matched") {
     // The person who raised the SOS sees the matching status even if no
     // volunteer is currently available. Volunteers still receive the SOS only
@@ -60,6 +67,9 @@ async function relayKafkaEvent(topic: string, value: Buffer | null): Promise<voi
     io.to(`sos-${data._id}`).emit("sos-status", data);
     io.to(`sos-${data._id}`).emit("sos-accepted", {
       volunteerId: data.acceptedBy,
+      victimId: data.victimId,
+      lat: data.lat,
+      lng: data.lng,
       message: "Volunteer aa raha hai"
     });
     for (const volunteerId of validVolunteerIds(data.matchedVolunteers)) {
@@ -75,7 +85,7 @@ async function relayKafkaEvent(topic: string, value: Buffer | null): Promise<voi
     io.to(`sos-${data._id}`).emit("sos-status", data);
     io.to(`sos-${data._id}`).emit("volunteer-not-found", {
       sosId: data._id,
-      message: "No volunteer could accept your SOS in the last minute. We are still looking for help."
+      message: "No volunteer could accept your SOS in the last 5 minutes. We are still looking for help."
     });
     return;
   }

@@ -1,7 +1,7 @@
 import { io, Socket } from "socket.io-client";
 
 const API_GATEWAY_URL =
-process.env.NEXT_PUBLIC_API_GATEWAY_URL || "http://localhost:4003";
+  process.env.NEXT_PUBLIC_API_GATEWAY_URL || "http://localhost:9000";
 
 let socket: Socket | null = null;
 

@@ -24,7 +24,7 @@ interface AvailabilityEvent {
   isAvailable: boolean;
 }
 
-const brokers = (process.env.KAFKA_BROKERS ?? "localhost:9092")
+const brokers = (process.env.KAFKA_BROKERS ?? "kafka:9092")
   .split(",")
   .map((broker) => broker.trim())
   .filter(Boolean);
@@ -33,8 +33,8 @@ const kafka = new Kafka({ clientId: "matching-service", brokers });
 const producer = kafka.producer();
 const matchingConsumer = kafka.consumer({ groupId: "matching-group" });
 const locationConsumer = kafka.consumer({ groupId: "matching-location-group" });
-const sosServiceUrl = process.env.SOS_SERVICE_URL ?? "http://localhost:4001";
-const volunteerAcceptanceTimeoutMs = 60_000;
+const sosServiceUrl = process.env.SOS_SERVICE_URL ?? "http://sos-service:4001";
+const volunteerAcceptanceTimeoutMs = 5 * 60_000;
 
 function parseEvent<T>(value: Buffer | null): T {
   if (!value) throw new Error("Kafka event payload is empty");
@@ -44,6 +44,7 @@ function parseEvent<T>(value: Buffer | null): T {
 function scheduleVolunteerSearchExpiry(sosId: string): void {
   setTimeout(async () => {
     try {
+      await redis.zRem("active:sos:geo", sosId);
       const response = await fetch(`${sosServiceUrl}/sos/${sosId}/volunteer-not-found`, {
         method: "PATCH"
       });
@@ -60,11 +61,39 @@ function scheduleVolunteerSearchExpiry(sosId: string): void {
         topic: "sos.volunteer-not-found",
         messages: [{ value: JSON.stringify(sos) }]
       });
-      console.log(`SOS ${sosId} had no volunteer acceptance after one minute`);
+      console.log(`SOS ${sosId} had no volunteer acceptance after five minutes`);
     } catch (error) {
       console.error(`Unable to expire volunteer search for SOS ${sosId}`, error);
     }
   }, volunteerAcceptanceTimeoutMs);
+}
+
+async function checkAndMatchActiveSosForVolunteer(volunteerId: string, lat: number, lng: number): Promise<void> {
+  try {
+    const nearbySosIds = await redis.geoSearch(
+      "active:sos:geo",
+      { longitude: lng, latitude: lat },
+      { radius: 5, unit: "km" }
+    );
+
+    for (const sosId of nearbySosIds) {
+      const response = await fetch(`${sosServiceUrl}/sos/${sosId}/match`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchedVolunteers: [volunteerId] })
+      });
+      if (response.ok) {
+        const matchedSos = (await response.json()) as SosEvent;
+        await producer.send({
+          topic: "sos.matched",
+          messages: [{ value: JSON.stringify(matchedSos) }]
+        });
+        console.log(`Dynamically matched volunteer ${volunteerId} to active SOS ${sosId}`);
+      }
+    }
+  } catch (error) {
+    console.error(`Error dynamically matching active SOS for volunteer ${volunteerId}`, error);
+  }
 }
 
 async function handleSosEvent(topic: string, value: Buffer | null): Promise<void> {
@@ -74,13 +103,20 @@ async function handleSosEvent(topic: string, value: Buffer | null): Promise<void
     if (typeof data.lat !== "number" || typeof data.lng !== "number") {
       throw new Error("SOS event is missing coordinates");
     }
+
+    await redis.geoAdd("active:sos:geo", {
+      longitude: data.lng,
+      latitude: data.lat,
+      member: data._id
+    });
+
     const nearby = await redis.geoSearch(
       "volunteers:geo",
       { longitude: data.lng, latitude: data.lat },
       { radius: 5, unit: "km" },
       { SORT: "ASC", COUNT: 5 }
     );
-    console.log(`SOOS ${data._id} — nearby volunteers:`, nearby);
+    console.log(`SOS ${data._id} — nearby volunteers:`, nearby);
 
     // Persist the matched state before notifying anyone. This is what lets a
     // selected volunteer accept the SOS and lets the requester retrieve the
@@ -112,16 +148,19 @@ async function handleSosEvent(topic: string, value: Buffer | null): Promise<void
 
   if (topic === "sos.accepted") {
     if (!data.acceptedBy) throw new Error("Accepted SOS event is missing acceptedBy");
+    await redis.zRem("active:sos:geo", data._id);
     await redis.zRem("volunteers:geo", data.acceptedBy);
-    console.log(`Volunteer ${data.acceptedBy} removed from the available geo-index`);
+    console.log(`Volunteer ${data.acceptedBy} removed from available index and SOS ${data._id} removed from active index`);
     return;
   }
 
   if (topic === "sos.resolved") {
+    await redis.zRem("active:sos:geo", data._id);
     console.log(`SOS ${data._id} resolved`);
   }
 
   if (topic === "sos.cancelled") {
+    await redis.zRem("active:sos:geo", data._id);
     console.log(`SOS ${data._id} cancelled`);
   }
 }
@@ -145,7 +184,15 @@ async function start(): Promise<void> {
         if (typeof data.volunteerId !== "string" || typeof data.isAvailable !== "boolean") {
           throw new Error("Availability event is invalid");
         }
-        if (!data.isAvailable) await redis.zRem("volunteers:geo", data.volunteerId);
+        if (!data.isAvailable) {
+          await redis.zRem("volunteers:geo", data.volunteerId);
+        } else {
+          const pos = await redis.geoPos("volunteers:geo", data.volunteerId);
+          const coord = pos?.[0];
+          if (coord && typeof coord.latitude === "number" && typeof coord.longitude === "number") {
+            await checkAndMatchActiveSosForVolunteer(data.volunteerId, coord.latitude, coord.longitude);
+          }
+        }
         return;
       }
 
@@ -158,27 +205,9 @@ async function start(): Promise<void> {
         latitude: data.lat,
         member: data.volunteerId
       });
-      // Get all volunteer IDs
-      const members = await redis.zRange("volunteers:geo", 0, -1);
 
-      console.log("Total Volunteers:", members.length);
-      console.log("Volunteer IDs:", members);
+      await checkAndMatchActiveSosForVolunteer(data.volunteerId, data.lat, data.lng);
 
-      // Get coordinates for each volunteer
-      const allData = await Promise.all(
-        members.map(async (member) => {
-          const position = await redis.geoPos("volunteers:geo", member);
-
-          return {
-            volunteerId: member,
-            latitude: position?.[0]?.latitude,
-            longitude: position?.[0]?.longitude,
-          };
-        })
-      );
-
-      console.log("Full Redis GEO Data:");
-      console.table(allData);
       console.log(`Volunteer ${data.volunteerId} location updated`);
     }
   });

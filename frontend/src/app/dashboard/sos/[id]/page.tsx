@@ -49,7 +49,16 @@ export default function SosTrackingPage() {
     if (!params.id) return;
     sosApi
       .get(`/sos/${params.id}`)
-      .then(({ data }) => setSos(data))
+      .then(({ data }) => {
+        setSos(data);
+        if (user && data.status === "accepted") {
+          if (data.acceptedBy === user.userId) {
+            setCounterpartLocation((prev) => prev ?? { lat: data.lat, lng: data.lng });
+          } else if (data.victimId === user.userId) {
+            setOwnLocation((prev) => prev ?? { lat: data.lat, lng: data.lng });
+          }
+        }
+      })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
 
@@ -60,7 +69,7 @@ export default function SosTrackingPage() {
     return () => {
       socket.off("connect", join);
     };
-  }, [params.id]);
+  }, [params.id, user]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -68,12 +77,22 @@ export default function SosTrackingPage() {
     const onStatus = (data: SosRecord) => {
       if (data._id !== params.id) return;
       setSos(data);
+      if (user && data.status === "accepted") {
+        if (data.acceptedBy === user.userId) {
+          setCounterpartLocation((prev) => prev ?? { lat: data.lat, lng: data.lng });
+        } else if (data.victimId === user.userId) {
+          setOwnLocation((prev) => prev ?? { lat: data.lat, lng: data.lng });
+        }
+      }
     };
 
-    const onAccepted = (data: { volunteerId: string; message: string }) => {
+    const onAccepted = (data: { volunteerId: string; message: string; lat?: number; lng?: number }) => {
       setSos((prev) =>
         prev ? { ...prev, status: "accepted", acceptedBy: data.volunteerId } : prev
       );
+      if (data.lat && data.lng && user?.userId === data.volunteerId) {
+        setCounterpartLocation({ lat: data.lat, lng: data.lng });
+      }
       toast.success(data.message || "Volunteer aa raha hai!");
     };
 
@@ -340,7 +359,7 @@ export default function SosTrackingPage() {
 
               {sos.status === "volunteer_not_found" && (
                 <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-600">
-                  No volunteer could accept your SOS in the last minute. We are still looking for help.
+                  No volunteer could accept your SOS in the last 5 minutes. We are still looking for help.
                 </div>
               )}
             </div>

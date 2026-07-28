@@ -10,7 +10,7 @@ interface SosCreatedEvent {
 }
 
 const sosServiceUrl = process.env.SOS_SERVICE_URL ?? "http://sos-service:4001";
-const brokers = (process.env.KAFKA_BROKERS ?? "localhost:9092")
+const brokers = (process.env.KAFKA_BROKERS ?? "kafka:9092")
   .split(",")
   .map((broker) => broker.trim())
   .filter(Boolean);
