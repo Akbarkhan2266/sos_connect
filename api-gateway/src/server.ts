@@ -61,18 +61,19 @@ app.use("/api/sos", serviceProxy(services.sos));
 app.use("/api/notifications", serviceProxy(services.notification));
 // Socket.IO uses an HTTP handshake followed by a WebSocket upgrade. Preserve
 // its `/socket.io` path while proxying both transports to notification-service.
-const socketProxy = createProxyMiddleware("/socket.io", {
+const socketProxy = createProxyMiddleware({
   target: services.notification,
   changeOrigin: true,
   ws: true,
   logLevel: "warn",
-  onError(error, _req, res: any) {
+  onError(error, req: any, res: any) {
+    if (req) req.proxyTarget = services.notification;
     console.error(`Socket proxy error for ${services.notification}:`, error.message);
     handleProxyError(res, "Notification service unavailable");
   },
 });
 
-app.use(socketProxy);
+app.use("/socket.io", socketProxy);
 
 const server = app.listen(port, "0.0.0.0", () => {
   console.log(`API gateway listening on http://0.0.0.0:${port}`);
@@ -81,8 +82,9 @@ const server = app.listen(port, "0.0.0.0", () => {
   console.log(`/socket.io -> ${services.notification}`);
 });
 
-server.on("upgrade", (req, socket, head) => {
+server.on("upgrade", (req: any, socket, head) => {
   if (req.url?.startsWith("/socket.io")) {
+    req.proxyTarget = services.notification;
     (socketProxy as any).upgrade(req, socket, head);
   }
 });
